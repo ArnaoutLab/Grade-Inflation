@@ -74,10 +74,10 @@ def pick_score_method(score):
         get_score = get_Renyi_score_in_2d
     elif score == 'CS':
         get_score = get_cs_divergence
-    elif score == 'Shannon_Jensson':
+    elif score == 'JSD':
         get_score = get_Jensen_Shannon
     else:
-        raise KeyError
+        raise KeyError(f'scoring method {score} not available')
     return get_score
 
 def get_Eden_score(real_columns, synthetic_columns, n_levels = 5, size = 50000, seed = 42):
