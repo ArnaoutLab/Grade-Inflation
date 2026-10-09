@@ -1,4 +1,4 @@
-from sklearn import datasets
+
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt 
@@ -6,9 +6,6 @@ import seaborn as sns
 from scipy.spatial.distance import cdist
 import ot
 from scipy.stats import pearsonr
-import sys
-import math
-from datetime import datetime
 import csv
 import os
 import scipy.stats as stats
@@ -17,21 +14,12 @@ from scipy.stats import gaussian_kde
 from tqdm import trange
 from Eden import FastEdenScorer
 
-
 real_color, synthetic_color = 'blue','orange'
 COMPUTE_LST = ['corr', 'ems', 'jaccard', 'Eden', 'KL','CS','JSD']
+
 ### loading uciml data ####
 
-def factorize_col(data):
-    for col in data.columns:
-    
-        if data.loc[:,col].dtype == 'object':
-            data[col] = pd.factorize(data[col])[0].astype(float)
-            print(col, data.loc[:,col].dtype)
-    
-    return data
-
-def load_uci_data(id, integer_enconding = False, verbose = False):
+def load_uci_data(id, verbose = False):
     """
     Loading data from uci machine learning repo
     """
@@ -53,14 +41,14 @@ def load_uci_data(id, integer_enconding = False, verbose = False):
         # variable information 
         print(dataset.variables) 
 
-    if integer_enconding:
-        return factorize_col(data)
-    else:
-        return data
+    return data
 
 #### scoring method ####
 
 def pick_score_method(score):
+    '''
+    wrapper for scoring method
+    '''
     if score == 'corr':
         get_score = get_corr_similarity
     elif score == 'ems':
@@ -80,6 +68,9 @@ def pick_score_method(score):
     return get_score
 
 def get_Eden_score(real_columns, synthetic_columns, n_levels = 5, size = 50000, seed = 42):
+    '''
+    calculate eden scoore
+    '''
     scorer = FastEdenScorer(
         n_of_levels=n_levels,
         thresh=0.05,
@@ -90,6 +81,9 @@ def get_Eden_score(real_columns, synthetic_columns, n_levels = 5, size = 50000, 
     return result.EdenScore
 
 def get_corr_similarity(real_columns, synthetic_columns):
+    '''
+    calculate correlation similarity score
+    '''
     try:
         pearsonr_real = pearsonr(real_columns.iloc[:,0], real_columns.iloc[:,1]).statistic
         pearsonr_synthetic = pearsonr(synthetic_columns.iloc[:,0], synthetic_columns.iloc[:,1]).statistic
@@ -124,8 +118,11 @@ def get_Jaccard_score(real_columns, synthetic_columns, threshold=0.1):
         
     return Jaccard_score
 
-def get_Renyi_score_in_2d(real_columns, synthetic_columns, viewpoint_parameter=1, size=5000000, seed=None):
-    """Note: real_columns and synthetic_columns must each consist of 2 columns only."""
+def get_Renyi_score_in_2d(real_columns, synthetic_columns, size=5000000, seed=None):
+    '''
+    calculating KL score
+    Note: real_columns and synthetic_columns must each consist of 2 columns only
+    '''
     kernel_real = gaussian_kde(real_columns.dropna().T)
     kernel_syn = gaussian_kde(synthetic_columns.dropna().T)
 
@@ -136,11 +133,9 @@ def get_Renyi_score_in_2d(real_columns, synthetic_columns, viewpoint_parameter=1
     likelihood_ratios = syn_likelihoods/real_likelihoods
     likelihood_ratios = likelihood_ratios[likelihood_ratios > 1e-100] #in case there are zeros 
 
-    if viewpoint_parameter != 1:
-        weighted_average_of_likelihood_ratios = np.mean(likelihood_ratios**(1-viewpoint_parameter))
-        Renyi_divergence = (1/(viewpoint_parameter-1))*np.log(weighted_average_of_likelihood_ratios)
-    else: #in this case the Renyi divergence is the Kullback-Leibler divergence
-        Renyi_divergence = np.mean(np.log(1/likelihood_ratios))
+
+    #in this case the Renyi divergence is the Kullback-Leibler divergence
+    Renyi_divergence = np.mean(np.log(1/likelihood_ratios))
 
     Renyi_score = np.exp(-Renyi_divergence)
     
@@ -198,6 +193,9 @@ def get_Jensen_Shannon(real_columns, synthetic_columns, n_samples=500000, seed=N
     return np.exp(-jsd)
 
 def get_cs_divergence(real_columns, synthetic_columns, bw_method="scott"):
+    '''
+    Calculate CS score
+    '''
     real = real_columns.dropna().to_numpy().T
     synthetic = synthetic_columns.dropna().to_numpy().T
 
@@ -245,6 +243,9 @@ def get_earth_movers_score(data, syn, standardize=True):
 ### blind test ####
 
 def plot_kde(data1, syn_gan, inds, method, score = 'corr', seed = None):
+    '''
+    generate contour plots
+    '''
     if seed:
         np.random.seed(seed) 
 
@@ -260,7 +261,10 @@ def plot_kde(data1, syn_gan, inds, method, score = 'corr', seed = None):
 
 
 
-def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewidth=2.5, rotate=False, plot = False, path = 'score.csv', compute_lst = COMPUTE_LST):
+def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewidth=2.5, mirror=False, plot = False, path = 'score.csv', compute_lst = COMPUTE_LST):
+    '''
+    calculate score and produce plts
+    '''
     if flip_color:
         flip_sign = '-flip-color'
         real_color, synthetic_color = 'tab:red', 'blue'
@@ -268,11 +272,11 @@ def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewi
         flip_sign = ''
         real_color, synthetic_color = 'blue', 'tab:red'
     
-    if rotate:
+    if mirror:
         inds = [inds[1], inds[0]]
-        rotate_sign = '-rotated'
+        mirror_sign = '-mirrord'
     else:
-        rotate_sign = ''
+        mirror_sign = ''
     
     
     if plot:
@@ -297,7 +301,7 @@ def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewi
 
         ax1.get_yaxis().set_visible(False)
         ax1.get_xaxis().set_visible(False)
-        fig1.savefig(f'/Users/miaoli/Desktop/maxent/blind_test/{pair_n}-a{flip_sign}{rotate_sign}', pad_inches=0, bbox_inches='tight')
+        fig1.savefig(f'/Users/miaoli/Desktop/maxent/blind_test/{pair_n}-a{flip_sign}{mirror_sign}', pad_inches=0, bbox_inches='tight')
         plt.close(fig1)
 
         # Second subplot
@@ -312,7 +316,7 @@ def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewi
 
         ax2.get_yaxis().set_visible(False)
         ax2.get_xaxis().set_visible(False)
-        fig2.savefig(f'/Users/miaoli/Desktop/maxent/blind_test/{pair_n}-b{flip_sign}{rotate_sign}', pad_inches=0, bbox_inches='tight')
+        fig2.savefig(f'/Users/miaoli/Desktop/maxent/blind_test/{pair_n}-b{flip_sign}{mirror_sign}', pad_inches=0, bbox_inches='tight')
         plt.close(fig2)
 
     
@@ -335,8 +339,8 @@ def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewi
             existing_rows = list(reader)
 
     new_rows = [
-        [f'{pair_n}-a{flip_sign}{rotate_sign}', result1, t_score],
-        [f'{pair_n}-b{flip_sign}{rotate_sign}', result2, t_score]
+        [f'{pair_n}-a{flip_sign}{mirror_sign}', result1, t_score],
+        [f'{pair_n}-b{flip_sign}{mirror_sign}', result2, t_score]
     ]
 
     all_rows = new_rows + existing_rows
@@ -364,6 +368,9 @@ def t_test(real, syn1, syn2, inds, score, round = 50):
     return t_stat, p_value
 
 def run_score_for_pair(real, pair_n, ind, file = 'score.csv', check_p = False):
+    '''
+    main function for each unique pair
+    '''
     syn1 = pd.read_csv(f'csv/{pair_n}_syn1.csv').drop(columns = 'Unnamed: 0')
     syn2 = pd.read_csv(f'csv/{pair_n}_syn2.csv').drop(columns = 'Unnamed: 0')
     if check_p:
@@ -372,7 +379,7 @@ def run_score_for_pair(real, pair_n, ind, file = 'score.csv', check_p = False):
     else:
         t_score = (0)
     blind_test(real, syn1, syn2, ind, pair_n, t_score , path = file)
-    blind_test(real, syn1, syn2, ind, pair_n, t_score , rotate=True, path = file)
+    blind_test(real, syn1, syn2, ind, pair_n, t_score , mirror=True, path = file)
     blind_test(real, syn1, syn2, ind, pair_n, t_score , flip_color=True, path = file)
 
 if  __name__ == '__main__':
