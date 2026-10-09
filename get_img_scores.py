@@ -9,7 +9,6 @@ from scipy.stats import pearsonr
 import sys
 import math
 from datetime import datetime
-import pyemd
 import csv
 import os
 import scipy.stats as stats
@@ -20,7 +19,7 @@ from Eden import FastEdenScorer
 
 
 real_color, synthetic_color = 'blue','orange'
-
+COMPUTE_LST = ['corr', 'ems', 'jaccard', 'Eden', 'KL','CS','JSD']
 ### loading uciml data ####
 
 def factorize_col(data):
@@ -261,7 +260,7 @@ def plot_kde(data1, syn_gan, inds, method, score = 'corr', seed = None):
 
 
 
-def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewidth=2.5, rotate=False, plot = False, path = 'score.csv'):
+def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewidth=2.5, rotate=False, plot = False, path = 'score.csv', compute_lst = COMPUTE_LST):
     if flip_color:
         flip_sign = '-flip-color'
         real_color, synthetic_color = 'tab:red', 'blue'
@@ -316,7 +315,7 @@ def blind_test(real, syn1, syn2, inds, pair_n, t_score, flip_color=False, linewi
         fig2.savefig(f'/Users/miaoli/Desktop/maxent/blind_test/{pair_n}-b{flip_sign}{rotate_sign}', pad_inches=0, bbox_inches='tight')
         plt.close(fig2)
 
-    compute_lst = ['corr', 'ems', 'jaccard', 'Eden', 'KL','CS','JSD']
+    
 
     result1 = []
     for score in compute_lst:
@@ -368,10 +367,13 @@ def run_score_for_pair(real, pair_n, ind, file = 'score.csv', check_p = False):
     syn1 = pd.read_csv(f'csv/{pair_n}_syn1.csv').drop(columns = 'Unnamed: 0')
     syn2 = pd.read_csv(f'csv/{pair_n}_syn2.csv').drop(columns = 'Unnamed: 0')
     if check_p:
-        print(t_test(real, syn1, syn2, ind, 'J_q', round=50))
-    blind_test(real, syn1, syn2, ind, pair_n, (0), path = file)
-    blind_test(real, syn1, syn2, ind, pair_n, (0), rotate=True, path = file)
-    blind_test(real, syn1, syn2, ind, pair_n, (0), flip_color=True, path = file)
+        t_score, _ = t_test(real, syn1, syn2, ind, 'J_q', round=50)
+        print(t_score)
+    else:
+        t_score = (0)
+    blind_test(real, syn1, syn2, ind, pair_n, t_score , path = file)
+    blind_test(real, syn1, syn2, ind, pair_n, t_score , rotate=True, path = file)
+    blind_test(real, syn1, syn2, ind, pair_n, t_score , flip_color=True, path = file)
 
 if  __name__ == '__main__':
     filename = 'blind_test_scores.csv'
